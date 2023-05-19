@@ -20,6 +20,10 @@ public class Message {
         return text;
     }
 
+    public @NotNull String prompt() {
+        return speaker.prompt() + (text.isEmpty() ? "" : " " + text);
+    }
+
     @Override
     public @NotNull String toString() {
         return String.format("Message { speaker=%s, text='%s'}", speaker, text);

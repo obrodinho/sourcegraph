@@ -33,6 +33,9 @@
         <notificationGroup id="Cody Sourcegraph access" displayType="BALLOON"/>
         <postStartupActivity implementation="com.sourcegraph.cody.telemetry.PostStartupActivity"/>
         <postStartupActivity implementation="com.sourcegraph.cody.config.NotificationActivity"/>
+        <!-- Suggestions -->
+        <applicationService serviceImplementation="com.sourcegraph.cody.suggestions.CodySuggestionsExecutor"/>
+        <editorFactoryListener implementation="com.sourcegraph.cody.suggestions.CodyEditorFactoryListener"/>
     </extensions>
 
     <actions>
