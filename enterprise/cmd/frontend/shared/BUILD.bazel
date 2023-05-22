@@ -34,6 +34,7 @@ go_library(
         "//enterprise/cmd/frontend/internal/searchcontexts",
         "//enterprise/internal/codeintel",
         "//enterprise/internal/codeintel/shared",
+        "//enterprise/internal/oobmigration/migrations",
         "//enterprise/internal/scim",
         "//internal/conf",
         "//internal/conf/conftypes",

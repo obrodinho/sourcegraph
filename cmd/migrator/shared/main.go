@@ -60,7 +60,7 @@ var DefaultSchemaFactories = []schemas.ExpectedSchemaFactory{
 	schemas.GCSExpectedSchemaFactory,
 }
 
-func Start(logger log.Logger, registerEnterpriseMigrators registerMigratorsUsingConfAndStoreFactoryFunc) error {
+func Start(logger log.Logger, registerEnterpriseMigrators store.RegisterMigratorsUsingConfAndStoreFactoryFunc) error {
 	observationCtx := observation.NewContext(logger)
 
 	outputFactory := func() *output.Output { return out }
@@ -72,7 +72,7 @@ func Start(logger log.Logger, registerEnterpriseMigrators registerMigratorsUsing
 		return newRunnerWithSchemas(schemaNames, schemas.Schemas)
 	}
 
-	registerMigrators := composeRegisterMigratorsFuncs(
+	registerMigrators := store.ComposeRegisterMigratorsFuncs(
 		ossmigrations.RegisterOSSMigratorsUsingConfAndStoreFactory,
 		registerEnterpriseMigrators,
 	)
