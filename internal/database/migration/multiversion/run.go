@@ -62,7 +62,7 @@ func RunMigration(
 	// `patch` below but only if we can best-effort fetch it. We want to allow
 	// the user to skip erroring here if they are explicitly skipping this
 	// version check.
-	version, _, ok, err := oobmigration.Version{}, 1, true, nil // upgradeStore.GetServiceVersion(ctx)
+	version, patch, ok, err := GetServiceVersion(ctx, db)
 	if !skipVersionCheck {
 		if err != nil {
 			return err
@@ -76,9 +76,9 @@ func RunMigration(
 	}
 
 	if !skipDriftCheck {
-		// if err := CheckDrift(ctx, r, plan.From.GitTagWithPatch(patch), out, false, schemas.SchemaNames, expectedSchemaFactories); err != nil {
-		// 	return err
-		// }
+		if err := CheckDrift(ctx, r, plan.From.GitTagWithPatch(patch), out, false, schemas.SchemaNames, expectedSchemaFactories); err != nil {
+			return err
+		}
 	}
 
 	for i, step := range plan.steps {

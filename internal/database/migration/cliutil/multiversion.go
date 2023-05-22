@@ -17,7 +17,7 @@ func GetRawServiceVersion(ctx context.Context, r *runner.Runner) (_ string, ok b
 		return "", false, err
 	}
 
-	return upgradestore.New(db).GetServiceVersion(ctx, "frontend")
+	return upgradestore.New(db).GetServiceVersion(ctx)
 }
 
 // GetServiceVersion returns the frontend service version information for the given runner as a parsed version.
