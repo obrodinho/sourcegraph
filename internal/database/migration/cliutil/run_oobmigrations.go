@@ -138,7 +138,7 @@ func runOutOfBandMigrations(
 
 	ticker := time.NewTicker(time.Second).C
 	for {
-		migrations, err := store.GetByIDS(ctx, ids)
+		migrations, err := store.GetByIDs(ctx, ids)
 		if err != nil {
 			return err
 		}
