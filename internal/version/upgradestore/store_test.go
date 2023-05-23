@@ -32,13 +32,13 @@ func TestGetServiceVersion(t *testing.T) {
 	})
 
 	t.Run("after updates", func(t *testing.T) {
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.2.3"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.2.3"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.2.4"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.2.4"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.3.0"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.3.0"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
 
@@ -75,11 +75,11 @@ func TestSetServiceVersion(t *testing.T) {
 	db := database.NewDB(logger, dbtest.NewDB(logger, t))
 	store := New(db)
 
-	if err := store.UpdateServiceVersion(ctx, "frontend", "1.2.3"); err != nil {
+	if err := store.UpdateServiceVersion(ctx, "1.2.3"); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
-	if err := store.SetServiceVersion(ctx, "frontend", "1.2.5"); err != nil {
+	if err := store.SetServiceVersion(ctx, "1.2.5"); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
@@ -109,13 +109,13 @@ func TestGetFirstServiceVersion(t *testing.T) {
 	})
 
 	t.Run("after updates", func(t *testing.T) {
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.2.3"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.2.3"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.2.4"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.2.4"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		if err := store.UpdateServiceVersion(ctx, "frontend", "1.3.0"); err != nil {
+		if err := store.UpdateServiceVersion(ctx, "1.3.0"); err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
 
@@ -181,7 +181,7 @@ func TestUpdateServiceVersion(t *testing.T) {
 				Latest:   semver.MustParse("2.1.0"),
 			}}, // upgrade policy violation returns
 		} {
-			have := store.UpdateServiceVersion(ctx, "frontend", tc.version)
+			have := store.UpdateServiceVersion(ctx, tc.version)
 			want := tc.err
 
 			if !errors.Is(have, want) {
@@ -197,7 +197,7 @@ func TestUpdateServiceVersion(t *testing.T) {
 			t.Fatalf("unexpected error: %s", err)
 		}
 
-		if err := store.UpdateServiceVersion(ctx, "frontend", "0.0.1"); err == nil {
+		if err := store.UpdateServiceVersion(ctx, "0.0.1"); err == nil {
 			t.Fatalf("expected error, got none")
 		}
 	})

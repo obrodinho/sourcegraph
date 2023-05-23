@@ -24,6 +24,7 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/conf/deploy"
 	"github.com/sourcegraph/sourcegraph/internal/database"
+	"github.com/sourcegraph/sourcegraph/internal/database/migration"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/cliutil"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/multiversion"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/runner"
@@ -378,7 +379,7 @@ func (r *upgradeReadinessResolver) init(ctx context.Context) (_ *runner.Runner, 
 				schemaList = append(schemaList, schemas.CodeInsights)
 			}
 			observationCtx := observation.NewContext(r.logger)
-			runner, err := migratorshared.NewRunnerWithSchemas(observationCtx, schemaNames, schemaList)
+			runner, err := migration.NewRunnerWithSchemas(observationCtx, output.OutputFromLogger(r.logger), "frontend-upgradereadiness", schemaNames, schemaList)
 			if err != nil {
 				return nil, "", nil, errors.Wrap(err, "new runner")
 			}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -17,11 +16,14 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/conf/conftypes"
 	"github.com/sourcegraph/sourcegraph/internal/database"
 	"github.com/sourcegraph/sourcegraph/internal/database/locker"
+	"github.com/sourcegraph/sourcegraph/internal/database/migration"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/multiversion"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/runner"
+	"github.com/sourcegraph/sourcegraph/internal/database/migration/schemas"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/store"
 	"github.com/sourcegraph/sourcegraph/internal/goroutine"
 	"github.com/sourcegraph/sourcegraph/internal/httpserver"
+	"github.com/sourcegraph/sourcegraph/internal/observation"
 	"github.com/sourcegraph/sourcegraph/internal/oobmigration"
 	"github.com/sourcegraph/sourcegraph/internal/oobmigration/migrations"
 	"github.com/sourcegraph/sourcegraph/internal/version"
@@ -32,7 +34,7 @@ import (
 
 var buffer strings.Builder // :)
 
-func tryAutoUpgrade(ctx context.Context, logger log.Logger, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) (err error) {
+func tryAutoUpgrade(ctx context.Context, obsvCtx *observation.Context, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) (err error) {
 	autoupgradeStore := upgradestore.New(db)
 	locker := locker.NewWith(db, "autoupgrade")
 	_, unlock, err := locker.Lock(ctx, 1, true)
@@ -60,20 +62,20 @@ func tryAutoUpgrade(ctx context.Context, logger log.Logger, db database.DB, hook
 		return nil
 	}
 
-	stopFunc, err := serveConfigurationServer(ctx, logger)
+	stopFunc, err := serveConfigurationServer(ctx, obsvCtx)
 	if err != nil {
 		return err
 	}
 	defer stopFunc()
 
-	if err := runMigration(ctx, currentVersion, toVersion, db, hook); err != nil {
+	if err := runMigration(ctx, obsvCtx, currentVersion, toVersion, db, hook); err != nil {
 		return err
 	}
 
 	return errors.New("MIGRATION SUCCEEDED, RESTARTING")
 }
 
-func runMigration(ctx context.Context, from, to oobmigration.Version, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) error {
+func runMigration(ctx context.Context, obsvCtx *observation.Context, from, to oobmigration.Version, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) error {
 	versionRange, err := oobmigration.UpgradeRange(from, to)
 	if err != nil {
 		return err
@@ -94,9 +96,20 @@ func runMigration(ctx context.Context, from, to oobmigration.Version, db databas
 		hook,
 	)
 
-	return multiversion.RunMigration(ctx,
+	out := output.NewOutput(&buffer, output.OutputOpts{})
+
+	runnerFactory := func(schemaNames []string, schemas []*schemas.Schema) (*runner.Runner, error) {
+		return migration.NewRunnerWithSchemas(
+			obsvCtx,
+			out,
+			"frontend-autoupgrader", schemaNames, schemas,
+		)
+	}
+
+	return multiversion.RunMigration(
+		ctx,
 		db,
-		nil, // TODO: nsc do
+		runnerFactory,
 		plan,
 		runner.ApplyPrivilegedMigrations,
 		nil,
@@ -107,15 +120,15 @@ func runMigration(ctx context.Context, from, to oobmigration.Version, db databas
 		false,
 		registerMigrators,
 		nil, // only needed for drift
-		output.NewOutput(os.Stdout, output.OutputOpts{}), // TODO: nsc do
+		out,
 	)
 }
 
-func serveConfigurationServer(ctx context.Context, logger log.Logger) (context.CancelFunc, error) {
+func serveConfigurationServer(ctx context.Context, obsvCtx *observation.Context) (context.CancelFunc, error) {
 	serveMux := http.NewServeMux()
 	router := mux.NewRouter().PathPrefix("/.internal").Subrouter()
 	middleware := httpapi.JsonMiddleware(&httpapi.ErrorHandler{
-		Logger:       logger,
+		Logger:       obsvCtx.Logger,
 		WriteErrBody: true,
 	})
 	router.Get(apirouter.Configuration).Handler(middleware(func(w http.ResponseWriter, r *http.Request) error {

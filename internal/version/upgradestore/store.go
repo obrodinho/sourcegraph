@@ -65,8 +65,8 @@ func (s *store) ValidateUpgrade(ctx context.Context, service, version string) er
 // UpdateServiceVersion updates the latest version for the given Sourcegraph service. This method also enforces
 // our documented upgrade policy and will return an error (performing no side-effects) if the upgrade is between
 // two unsupported versions. See https://docs.sourcegraph.com/#upgrading-sourcegraph.
-func (s *store) UpdateServiceVersion(ctx context.Context, service, version string) error {
-	return s.updateServiceVersion(ctx, service, version, true)
+func (s *store) UpdateServiceVersion(ctx context.Context, version string) error {
+	return s.updateServiceVersion(ctx, "frontend", version, true)
 }
 
 func (s *store) updateServiceVersion(ctx context.Context, service, version string, update bool) error {
@@ -114,8 +114,8 @@ WHERE versions.version = %s
 // SetServiceVersion updates the latest version for the given Sourcegraph service. This method also enforces
 // our documented upgrade policy and will return an error (performing no side-effects) if the upgrade is between
 // two unsupported versions. See https://docs.sourcegraph.com/#upgrading-sourcegraph.
-func (s *store) SetServiceVersion(ctx context.Context, service, version string) error {
-	return s.db.Exec(ctx, sqlf.Sprintf(setServiceVersionQuery, version, time.Now().UTC(), service))
+func (s *store) SetServiceVersion(ctx context.Context, version string) error {
+	return s.db.Exec(ctx, sqlf.Sprintf(setServiceVersionQuery, version, time.Now().UTC(), "frontend"))
 }
 
 const setServiceVersionQuery = `
