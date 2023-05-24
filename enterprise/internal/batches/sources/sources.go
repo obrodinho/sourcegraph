@@ -313,6 +313,8 @@ func buildChangesetSource(ctx context.Context, cf *httpcli.Factory, externalServ
 		return NewBitbucketCloudSource(ctx, externalService, cf)
 	case extsvc.KindAzureDevOps:
 		return NewAzureDevOpsSource(ctx, externalService, cf)
+	case extsvc.KindPerforce:
+		return NewPerforceSource(ctx, externalService, cf)
 	default:
 		return nil, errors.Errorf("unsupported external service type %q", extsvc.KindToType(externalService.Kind))
 	}
