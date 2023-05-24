@@ -2346,11 +2346,13 @@ func (s *Server) doClone(ctx context.Context, repo api.RepoName, dir GitDir, syn
 	pr, pw := io.Pipe()
 	defer pw.Close()
 
-	go readCloneProgress(bgCtx, s.DB, logger, newURLRedactor(remoteURL), lock, pr, repo)
+	redactor := newURLRedactor(remoteURL)
+
+	go readCloneProgress(bgCtx, s.DB, logger, redactor, lock, pr, repo)
 
 	output, err := runWith(ctx, s.recordingCommandFactory.Wrap(ctx, s.Logger, cmd), true, pw)
 	if err != nil {
-		return errors.Wrapf(err, "clone failed. Output: %s", string(output))
+		return errors.Wrapf(err, "clone failed. Output: %s", redactor.redact(string(output)))
 	}
 
 	if testRepoCorrupter != nil {
@@ -2410,7 +2412,7 @@ func (s *Server) doClone(ctx context.Context, repo api.RepoName, dir GitDir, syn
 	}
 
 	// best-effort update the output of the clone
-	go s.setLastOutput(bgCtx, repo, newURLRedactor(remoteURL).redact(string(output)))
+	go s.setLastOutput(bgCtx, repo, redactor.redact(string(output)))
 
 	logger.Info("repo cloned")
 	repoClonedCounter.Inc()
