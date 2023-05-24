@@ -1,0 +1,23 @@
+# TODO docstrings for everything
+
+type SnippetAttributionConnection {
+    totalCount: Int!
+    limitHit: Boolean!
+    pageInfo: PageInfo!
+    nodes: [SnippetAttribution!]!
+}
+
+type SnippetAttribution {
+    """
+    The name of the repository containing the snippet.
+
+    Note: we do not return a type Repository since repositoryName may
+    represent a repository not on this instance. eg a match from the
+    sourcegraph.com open source corpus.
+    """
+    repositoryName: String!
+}
+
+extend type Query {
+    snippetAttribution(snippet: String!, first: Int, after: String): SnippetAttributionConnection!
+}

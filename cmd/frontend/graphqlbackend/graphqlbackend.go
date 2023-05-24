@@ -582,6 +582,12 @@ func NewSchema(
 		schemas = append(schemas, completionSchema)
 	}
 
+	if guardrailsResolver := optional.GuardrailsResolver; guardrailsResolver != nil {
+		EnterpriseResolvers.guardrailsResolver = guardrailsResolver
+		resolver.GuardrailsResolver = guardrailsResolver
+		schemas = append(schemas, guardrailsSchema)
+	}
+
 	if appResolver := optional.AppResolver; appResolver != nil {
 		// Not under enterpriseResolvers, as this is a OSS schema extension.
 		resolver.AppResolver = appResolver
@@ -635,6 +641,7 @@ type OptionalResolver struct {
 	DotcomRootResolver
 	EmbeddingsResolver
 	GitHubAppsResolver
+	GuardrailsResolver
 	InsightsAggregationResolver
 	InsightsResolver
 	LicenseResolver
@@ -745,6 +752,7 @@ var EnterpriseResolvers = struct {
 	dotcomResolver              DotcomRootResolver
 	embeddingsResolver          EmbeddingsResolver
 	gitHubAppsResolver          GitHubAppsResolver
+	guardrailsResolver          GuardrailsResolver
 	insightsResolver            InsightsResolver
 	licenseResolver             LicenseResolver
 	notebooksResolver           NotebooksResolver
