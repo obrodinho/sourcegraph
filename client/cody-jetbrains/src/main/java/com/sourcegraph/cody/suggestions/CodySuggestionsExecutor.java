@@ -18,8 +18,10 @@ import com.sourcegraph.cody.config.SettingsComponent;
 import com.sourcegraph.cody.vscode.*;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /** Responsible for executing suggestions. */
 public class CodySuggestionsExecutor {
@@ -34,6 +36,13 @@ public class CodySuggestionsExecutor {
   @RequiresEdt
   public void disposeInlays(Editor editor) {
     System.out.println("TODO: dispose inlay");
+    List<Inlay<?>> renderers =
+        editor
+            .getInlayModel()
+            .getInlineElementsInRange(0, editor.getDocument().getTextLength())
+            .stream()
+            .filter(inlay -> inlay.getRenderer() instanceof SimpleEditorCustomElementRenderer)
+            .collect(Collectors.toList());
   }
 
   @RequiresEdt
@@ -150,7 +159,13 @@ public class CodySuggestionsExecutor {
   }
 
   public boolean hasCompletionInlays(Editor editor) {
-    System.out.println("TODO: hasCompletionInlays()");
-    return true;
+    long codyInlaysCount =
+        editor
+            .getInlayModel()
+            .getInlineElementsInRange(0, editor.getDocument().getTextLength())
+            .stream()
+            .filter(inlay -> inlay.getRenderer() instanceof SimpleEditorCustomElementRenderer)
+            .count();
+    return codyInlaysCount > 0;
   }
 }
