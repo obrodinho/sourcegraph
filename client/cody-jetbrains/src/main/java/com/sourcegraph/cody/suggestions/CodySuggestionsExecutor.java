@@ -11,7 +11,7 @@ import com.intellij.openapi.editor.impl.ImaginaryEditor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.util.concurrency.annotations.RequiresEdt;
-import com.sourcegraph.cody.CodyPlugin;
+import com.sourcegraph.cody.CodyCompatibility;
 import com.sourcegraph.cody.completions.CompletionsService;
 import com.sourcegraph.cody.config.ConfigUtil;
 import com.sourcegraph.cody.config.SettingsComponent;
@@ -110,7 +110,8 @@ public class CodySuggestionsExecutor {
     }
 
     boolean isSupported =
-        isEditorInstanceSupported(editor) && CodyPlugin.isSupportedIDE(editor.getProject());
+        isEditorInstanceSupported(editor)
+            && CodyCompatibility.isSupportedProject(editor.getProject());
     KEY_EDITOR_SUPPORTED.set(editor, isSupported);
     return isSupported;
   }
