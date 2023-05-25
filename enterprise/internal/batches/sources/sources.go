@@ -291,7 +291,8 @@ func loadExternalService(ctx context.Context, s database.ExternalServiceStore, o
 			*schema.BitbucketServerConnection,
 			*schema.GitLabConnection,
 			*schema.BitbucketCloudConnection,
-			*schema.AzureDevOpsConnection:
+			*schema.AzureDevOpsConnection,
+			*schema.PerforceConnection:
 			return e, nil
 		}
 	}
