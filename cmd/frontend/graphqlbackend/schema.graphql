@@ -3033,7 +3033,7 @@ enum ExternalServiceKind {
     JVMPACKAGES
     NPMPACKAGES
     OTHER
-    LOCAL
+    LOCALGIT
     PAGURE
     PERFORCE
     PHABRICATOR
