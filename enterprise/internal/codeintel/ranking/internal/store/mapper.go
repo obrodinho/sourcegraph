@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/keegancsmith/sqlf"
-	otlog "github.com/opentracing/opentracing-go/log"
 
 	rankingshared "github.com/sourcegraph/sourcegraph/enterprise/internal/codeintel/ranking/internal/shared"
 	"github.com/sourcegraph/sourcegraph/internal/database/basestore"
@@ -62,24 +61,21 @@ WITH
 progress AS (
 	SELECT
 		crp.id,
-		crp.max_definition_id,
-		crp.max_reference_id,
+		crp.max_export_id,
 		crp.mappers_started_at as started_at
 	FROM codeintel_ranking_progress crp
 	WHERE
 		crp.graph_key = %s AND
 		crp.mapper_completed_at IS NULL
 ),
-refs AS (
+exported_uploads AS (
 	SELECT
-		rr.id,
-		cre.upload_id,
-		rr.symbol_names
-	FROM codeintel_ranking_references rr
-	JOIN codeintel_ranking_exports cre ON cre.id = rr.exported_upload_id
+		cre.id,
+		cre.upload_id
+	FROM codeintel_ranking_exports cre
 	JOIN progress p ON TRUE
 	WHERE
-		rr.graph_key = %s AND
+		cre.graph_key = %s AND
 
 		-- Note that we do a check in the processable_symbols CTE below that will
 		-- ensure that we don't process a record AND the one it shadows. We end up
@@ -88,9 +84,18 @@ refs AS (
 
 		-- Ensure that the record is within the bounds where it would be visible
 		-- to the current "snapshot" defined by the ranking computation state row.
-		rr.id <= p.max_reference_id AND
-		(cre.deleted_at IS NULL OR cre.deleted_at > p.started_at) AND
-
+		cre.id <= p.max_export_id AND
+		(cre.deleted_at IS NULL OR cre.deleted_at > p.started_at)
+	ORDER BY cre.graph_key, cre.deleted_at DESC NULLS FIRST, cre.id
+),
+refs AS (
+	SELECT
+		rr.id,
+		eu.upload_id,
+		rr.symbol_names
+	FROM codeintel_ranking_references rr
+	JOIN exported_uploads eu ON eu.id = rr.exported_upload_id
+	WHERE
 		-- Ensure the record isn't already processed
 		NOT EXISTS (
 			SELECT 1
@@ -99,7 +104,6 @@ refs AS (
 				rrp.graph_key = %s AND
 				rrp.codeintel_ranking_reference_id = rr.id
 		)
-	ORDER BY rr.id
 	LIMIT %s
 	FOR UPDATE SKIP LOCKED
 ),
@@ -175,10 +179,9 @@ referenced_definitions AS (
 		JOIN progress p ON TRUE
 		WHERE
 			rd.graph_key = %s AND
-
 			-- Ensure that the record is within the bounds where it would be visible
 			-- to the current "snapshot" defined by the ranking computation state row.
-			rd.id <= p.max_definition_id AND
+			cre.id <= p.max_export_id AND
 			(cre.deleted_at IS NULL OR cre.deleted_at > p.started_at)
 	) s
 
@@ -202,10 +205,10 @@ ins AS (
 ),
 set_progress AS (
 	UPDATE codeintel_ranking_progress
-	SET mapper_completed_at = NOW()
-	WHERE
-		id IN (SELECT id FROM progress) AND
-		NOT EXISTS (SELECT 1 FROM refs)
+	SET
+		num_reference_records_processed = COALESCE(num_reference_records_processed, 0) + (SELECT COUNT(*) FROM locked_refs),
+		mapper_completed_at             = CASE WHEN (SELECT COUNT(*) FROM refs) = 0 THEN NOW() ELSE NULL END
+	WHERE id IN (SELECT id FROM progress)
 )
 SELECT
 	(SELECT COUNT(*) FROM locked_refs),
@@ -260,37 +263,45 @@ WITH
 progress AS (
 	SELECT
 		crp.id,
-		crp.max_path_id,
+		crp.max_export_id,
 		crp.mappers_started_at as started_at
 	FROM codeintel_ranking_progress crp
 	WHERE
 		crp.graph_key = %s AND
 		crp.seed_mapper_completed_at IS NULL
 ),
+exported_uploads AS (
+	SELECT
+		cre.id,
+		cre.upload_id
+	FROM codeintel_ranking_exports cre
+	JOIN progress p ON TRUE
+	WHERE
+		cre.graph_key = %s AND
+
+		-- Note that we do a check in the processable_symbols CTE below that will
+		-- ensure that we don't process a record AND the one it shadows. We end up
+		-- taking the lowest ID and no-oping any others that happened to fall into
+		-- the window.
+
+		-- Ensure that the record is within the bounds where it would be visible
+		-- to the current "snapshot" defined by the ranking computation state row.
+		cre.id <= p.max_export_id AND
+		(cre.deleted_at IS NULL OR cre.deleted_at > p.started_at)
+	ORDER BY cre.graph_key, cre.deleted_at DESC NULLS FIRST, cre.id
+),
 unprocessed_path_counts AS (
 	SELECT
 		ipr.id,
-		cre.upload_id,
+		eu.upload_id,
 		ipr.graph_key,
 		CASE
 			WHEN ipr.document_path != '' THEN array_append('{}'::text[], ipr.document_path)
 			ELSE ipr.document_paths
 		END AS document_paths
 	FROM codeintel_initial_path_ranks ipr
-	JOIN codeintel_ranking_exports cre ON cre.id = ipr.exported_upload_id
-	JOIN progress p ON TRUE
+	JOIN exported_uploads eu ON eu.id = ipr.exported_upload_id
 	WHERE
-		ipr.graph_key = %s AND
-
-		-- Note that we don't do any special precautions here to de-duplicate the
-		-- zero-rank path data, as duplicate paths add a zero count (no-op), and
-		-- extra paths will no be resolvable in gitserver.
-
-		-- Ensure that the record is within the bounds where it would be visible
-		-- to the current "snapshot" defined by the ranking computation state row.
-		ipr.id <= p.max_path_id AND
-		(cre.deleted_at IS NULL OR cre.deleted_at > p.started_at) AND
-
 		-- Ensure the record isn't already processed
 		NOT EXISTS (
 			SELECT 1
@@ -299,7 +310,6 @@ unprocessed_path_counts AS (
 				prp.graph_key = %s AND
 				prp.codeintel_initial_path_ranks_id = ipr.id
 		)
-	ORDER BY ipr.id
 	LIMIT %s
 	FOR UPDATE SKIP LOCKED
 ),
@@ -334,10 +344,10 @@ ins AS (
 ),
 set_progress AS (
 	UPDATE codeintel_ranking_progress
-	SET seed_mapper_completed_at = NOW()
-	WHERE
-		id IN (SELECT id FROM progress) AND
-		NOT EXISTS (SELECT 1 FROM unprocessed_path_counts)
+	SET
+		num_path_records_processed = COALESCE(num_path_records_processed, 0) + (SELECT COUNT(*) FROM locked_path_counts),
+		seed_mapper_completed_at   = CASE WHEN (SELECT COUNT(*) FROM unprocessed_path_counts) = 0 THEN NOW() ELSE NULL END
+	WHERE id IN (SELECT id FROM progress)
 )
 SELECT
 	(SELECT COUNT(*) FROM locked_path_counts),
@@ -345,7 +355,7 @@ SELECT
 `
 
 func (s *store) VacuumStaleGraphs(ctx context.Context, derivativeGraphKey string, batchSize int) (_ int, err error) {
-	ctx, _, endObservation := s.operations.vacuumStaleGraphs.With(ctx, &err, observation.Args{LogFields: []otlog.Field{}})
+	ctx, _, endObservation := s.operations.vacuumStaleGraphs.With(ctx, &err, observation.Args{})
 	defer endObservation(1, observation.Args{})
 
 	count, _, err := basestore.ScanFirstInt(s.db.Query(ctx, sqlf.Sprintf(vacuumStaleGraphsQuery, derivativeGraphKey, derivativeGraphKey, batchSize)))

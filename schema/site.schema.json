@@ -568,6 +568,12 @@
       "group": "BatchChanges",
       "default": false
     },
+    "batchChanges.autoDeleteBranch": {
+      "description": "Automatically delete branches created for Batch Changes changesets when the changeset is merged or closed, for supported code hosts. Overrides any setting on the repository on the code host itself.",
+      "type": "boolean",
+      "group": "BatchChanges",
+      "default": false
+    },
     "batchChanges.rolloutWindows": {
       "description": "Specifies specific windows, which can have associated rate limits, to be used when reconciling published changesets (creating or updating). All days and times are handled in UTC.",
       "type": "array",
@@ -1437,6 +1443,24 @@
               "severityLevel": "INFO"
             }
           ]
+        },
+        "securityEventLog": {
+          "description": "EXPERIMENTAL: Configuration for security event logging",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "location": {
+              "description": "Where to output the security event log [none, auditlog, database, all] where auditlog is the default logging to stdout with the specified audit log format",
+              "type": "string",
+              "enum": ["none", "auditlog", "database", "all"],
+              "default": "auditlog"
+            }
+          },
+          "examples": [
+            {
+              "location": "auditlog"
+            }
+          ]
         }
       }
     },
@@ -1912,6 +1936,25 @@
               "default": "1h"
             }
           }
+        },
+        "llmProxy": {
+          "description": "Configuration related to the LLM Proxy service management. This should only be used on sourcegraph.com.",
+          "type": "object",
+          "group": "Sourcegraph.com",
+          "properties": {
+            "bigQueryGoogleProjectID": {
+              "description": "The project ID to pull BigQuery LLM Proxy related events from.",
+              "type": "string"
+            },
+            "bigQueryDataset": {
+              "description": "The dataset to pull BigQuery LLM Proxy related events from.",
+              "type": "string"
+            },
+            "bigQueryTable": {
+              "description": "The table in the dataset to pull BigQuery LLM Proxy related events from.",
+              "type": "string"
+            }
+          }
         }
       },
       "group": "Sourcegraph.com"
@@ -2300,6 +2343,11 @@
           "description": "The maximum number of embeddings for text files to generate per repo",
           "type": "integer",
           "minimum": 0
+        },
+        "incremental": {
+          "description": "Experimental: Whether to generate embeddings incrementally. If true, only files that have changed since the last run will be processed.",
+          "type": "boolean",
+          "default": false
         }
       },
       "examples": [
@@ -2347,7 +2395,7 @@
         },
         "endpoint": {
           "type": "string",
-          "description": "The endpoint under which to reach the provider. Currently only used for provider type LLM proxy."
+          "description": "The endpoint under which to reach the provider. Currently only used for provider types \"llmproxy\" and \"anthropic\". The default values are \"https://completions.sourcegraph.com\" and \"https://api.anthropic.com/v1/complete\" for LLM proxy and Anthropic, respectively."
         },
         "perUserDailyLimit": {
           "description": "If > 0, enables the maximum number of completions requests allowed to be made by a single user account in a day. On instances that allow anonymous requests, the rate limit is enforced by IP.",

@@ -5,13 +5,14 @@ import { PrefilledOptions, withPreselectedOptions } from '../editor/withPreselec
 import { SourcegraphEmbeddingsSearchClient } from '../embeddings/client'
 import { SourcegraphIntentDetectorClient } from '../intent-detector/client'
 import { SourcegraphBrowserCompletionsClient } from '../sourcegraph-api/completions/browserClient'
-import { SourcegraphGraphQLAPIClient } from '../sourcegraph-api/graphql/client'
+import { SourcegraphGraphQLAPIClient } from '../sourcegraph-api/graphql'
 import { isError } from '../utils'
 
 import { BotResponseMultiplexer } from './bot-response-multiplexer'
 import { ChatClient } from './chat'
 import { getPreamble } from './preamble'
 import { getRecipe } from './recipes/browser-recipes'
+import { RecipeID } from './recipes/recipe'
 import { Transcript, TranscriptJSON } from './transcript'
 import { ChatMessage } from './transcript/messages'
 import { reformatBotMessage } from './viewHelpers'
@@ -35,7 +36,7 @@ export interface Client {
     readonly isMessageInProgress: boolean
     submitMessage: (text: string) => Promise<void>
     executeRecipe: (
-        recipeId: string,
+        recipeId: RecipeID,
         options?: {
             prefilledOptions?: PrefilledOptions
         }
@@ -51,7 +52,7 @@ export async function createClient({
     editor,
     initialTranscript,
 }: ClientInit): Promise<Client> {
-    const fullConfig = { debug: false, ...config }
+    const fullConfig = { debugEnable: false, ...config }
 
     const completionsClient = new SourcegraphBrowserCompletionsClient(fullConfig)
     const chatClient = new ChatClient(completionsClient)
@@ -65,7 +66,7 @@ export async function createClient({
         )
     }
 
-    const embeddingsSearch = repoId ? new SourcegraphEmbeddingsSearchClient(graphqlClient, repoId) : null
+    const embeddingsSearch = repoId ? new SourcegraphEmbeddingsSearchClient(graphqlClient, repoId, true) : null
 
     const codebaseContext = new CodebaseContext(config, config.codebase, embeddingsSearch, null)
 
@@ -87,7 +88,7 @@ export async function createClient({
     }
 
     async function executeRecipe(
-        recipeId: string,
+        recipeId: RecipeID,
         options?: {
             prefilledOptions?: PrefilledOptions
             humanChatInput?: string
@@ -104,6 +105,7 @@ export async function createClient({
             intentDetector,
             codebaseContext,
             responseMultiplexer: new BotResponseMultiplexer(),
+            firstInteraction: transcript.isEmpty,
         })
         if (!interaction) {
             return

@@ -10,6 +10,7 @@ import {
     mdiRefresh,
     mdiSecurity,
     mdiListStatus,
+    mdiVectorPolyline,
 } from '@mdi/js'
 import classNames from 'classnames'
 import { useNavigate } from 'react-router-dom'
@@ -224,6 +225,17 @@ export const RepositoryNode: React.FunctionComponent<React.PropsWithChildren<Rep
                                     <Icon aria-hidden={true} svgPath={mdiBrain} className="mr-1" />
                                     Code graph data
                                 </MenuItem>
+
+                                <MenuItem
+                                    as={Button}
+                                    disabled={!repoClonedAndHealthy(node)}
+                                    onSelect={() => navigate(`/${node.name}/-/embeddings/configuration`)}
+                                    className="p-2"
+                                >
+                                    <Icon aria-hidden={true} svgPath={mdiVectorPolyline} className="mr-1" />
+                                    Embeddings
+                                </MenuItem>
+
                                 <MenuItem
                                     as={Button}
                                     disabled={!repoClonedAndHealthy(node)}
