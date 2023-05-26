@@ -11,6 +11,7 @@ go_library(
     visibility = ["//enterprise:__subpackages__"],
     deps = [
         "//internal/api",
+        "//internal/conf",
         "//internal/database",
         "//internal/database/basestore",
         "//internal/database/dbutil",
@@ -19,6 +20,7 @@ go_library(
         "//internal/workerutil/dbworker/store",
         "@com_github_keegancsmith_sqlf//:sqlf",
         "@com_github_lib_pq//:pq",
+        "@com_github_sourcegraph_log//:log",
     ],
 )
 
