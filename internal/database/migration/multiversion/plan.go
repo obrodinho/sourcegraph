@@ -10,7 +10,7 @@ import (
 
 type MigrationPlan struct {
 	// the source and target instance versions
-	From, to oobmigration.Version
+	from, to oobmigration.Version
 
 	// the stitched schema migration definitions over the entire version range by schema name
 	stitchedDefinitionsBySchemaName map[string]*definition.Definitions
@@ -81,7 +81,7 @@ func PlanMigration(from, to oobmigration.Version, versionRange []oobmigration.Ve
 	})
 
 	return MigrationPlan{
-		From:                            from,
+		from:                            from,
 		to:                              to,
 		stitchedDefinitionsBySchemaName: stitchedDefinitionsBySchemaName,
 		steps:                           steps,

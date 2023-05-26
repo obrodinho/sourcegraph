@@ -382,7 +382,7 @@ ORDER BY e.created desc
 `
 
 func (s *Store) GetByIDs(ctx context.Context, ids []int) (_ []Migration, err error) {
-	migrations, err := scanMigrations(s.Store.Query(ctx, sqlf.Sprintf(getByIDQuery, pq.Array(ids))))
+	migrations, err := scanMigrations(s.Store.Query(ctx, sqlf.Sprintf(getByIDsQuery, pq.Array(ids))))
 	if err != nil {
 		return nil, err
 	}

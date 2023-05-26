@@ -2,12 +2,10 @@ package cliutil
 
 import (
 	"context"
-	"sort"
-	"time"
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/sourcegraph/sourcegraph/internal/database"
+	"github.com/sourcegraph/sourcegraph/internal/database/migration/multiversion"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/schemas"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/store"
 	"github.com/sourcegraph/sourcegraph/internal/oobmigration"
@@ -48,7 +46,7 @@ func RunOutOfBandMigrations(
 		}
 		registerMigrators := registerMigratorsWithStore(store.BasestoreExtractor{r})
 
-		if err := runOutOfBandMigrations(
+		if err := multiversion.RunOutOfBandMigrations(
 			ctx,
 			db,
 			false, // dry-run
@@ -74,98 +72,5 @@ func RunOutOfBandMigrations(
 			applyReverseFlag,
 			disableAnimation,
 		},
-	}
-}
-
-func runOutOfBandMigrations(
-	ctx context.Context,
-	db database.DB,
-	dryRun bool,
-	up bool,
-	animateProgress bool,
-	registerMigrations oobmigration.RegisterMigratorsFunc,
-	out *output.Output,
-	ids []int,
-) (err error) {
-	if len(ids) != 0 {
-		out.WriteLine(output.Linef(output.EmojiFingerPointRight, output.StyleReset, "Running out of band migrations %v", ids))
-		if dryRun {
-			return nil
-		}
-	}
-
-	store := oobmigration.NewStoreWithDB(db)
-	runner := outOfBandMigrationRunnerWithStore(store)
-	if err := runner.SynchronizeMetadata(ctx); err != nil {
-		return err
-	}
-	if err := registerMigrations(ctx, db, runner); err != nil {
-		return err
-	}
-
-	if len(ids) == 0 {
-		migrations, err := store.List(ctx)
-		if err != nil {
-			return err
-		}
-
-		for _, migration := range migrations {
-			ids = append(ids, migration.ID)
-		}
-	}
-	sort.Ints(ids)
-
-	if dryRun {
-		return nil
-	}
-
-	if err := runner.UpdateDirection(ctx, ids, !up); err != nil {
-		return err
-	}
-
-	go runner.StartPartial(ids)
-	defer runner.Stop()
-	defer func() {
-		if err == nil {
-			out.WriteLine(output.Line(output.EmojiSuccess, output.StyleSuccess, "Out of band migrations complete"))
-		} else {
-			out.WriteLine(output.Linef(output.EmojiFailure, output.StyleFailure, "Out of band migrations failed: %s", err))
-		}
-	}()
-
-	updateMigrationProgress, cleanup := oobmigration.MakeProgressUpdater(out, ids, animateProgress)
-	defer cleanup()
-
-	ticker := time.NewTicker(time.Second).C
-	for {
-		migrations, err := store.GetByIDs(ctx, ids)
-		if err != nil {
-			return err
-		}
-		sort.Slice(migrations, func(i, j int) bool { return migrations[i].ID < migrations[j].ID })
-
-		for i, m := range migrations {
-			updateMigrationProgress(i, m)
-		}
-
-		complete := true
-		for _, m := range migrations {
-			if !m.Complete() {
-				if m.ApplyReverse && m.NonDestructive {
-					continue
-				}
-
-				complete = false
-			}
-		}
-		if complete {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker:
-		}
 	}
 }

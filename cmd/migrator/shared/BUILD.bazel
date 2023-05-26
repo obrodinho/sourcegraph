@@ -6,12 +6,11 @@ go_library(
     importpath = "github.com/sourcegraph/sourcegraph/cmd/migrator/shared",
     visibility = ["//visibility:public"],
     deps = [
-        "//internal/database/connections/live",
+        "//internal/database/migration",
         "//internal/database/migration/cliutil",
         "//internal/database/migration/runner",
         "//internal/database/migration/schemas",
         "//internal/database/migration/store",
-        "//internal/database/postgresdsn",
         "//internal/observation",
         "//internal/oobmigration/migrations",
         "//internal/version",

@@ -3,7 +3,10 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -15,12 +18,12 @@ import (
 	"github.com/sourcegraph/sourcegraph/internal/conf"
 	"github.com/sourcegraph/sourcegraph/internal/conf/conftypes"
 	"github.com/sourcegraph/sourcegraph/internal/database"
-	"github.com/sourcegraph/sourcegraph/internal/database/locker"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/multiversion"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/runner"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/schemas"
 	"github.com/sourcegraph/sourcegraph/internal/database/migration/store"
+	"github.com/sourcegraph/sourcegraph/internal/env"
 	"github.com/sourcegraph/sourcegraph/internal/goroutine"
 	"github.com/sourcegraph/sourcegraph/internal/httpserver"
 	"github.com/sourcegraph/sourcegraph/internal/observation"
@@ -34,31 +37,42 @@ import (
 
 var buffer strings.Builder // :)
 
+var shouldAutoUpgade = env.MustGetBool("SRC_AUTOUPGRADE", false, "blahblahblah")
+
 func tryAutoUpgrade(ctx context.Context, obsvCtx *observation.Context, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) (err error) {
-	autoupgradeStore := upgradestore.New(db)
-	locker := locker.NewWith(db, "autoupgrade")
-	_, unlock, err := locker.Lock(ctx, 1, true)
-	if err != nil {
-		return errors.Wrap(err, "locker.Lock")
-	}
-	defer func() {
-		err = unlock(err)
-	}()
+	// locker := locker.NewWith(db, "autoupgrade")
+	// _, unlock, err := locker.Lock(ctx, 1, true)
+	// if err != nil {
+	// 	return errors.Wrap(err, "locker.Lock")
+	// }
+	// defer func() {
+	// 	err = unlock(err)
+	// }()
 
 	toVersion, _, ok := oobmigration.NewVersionAndPatchFromString(version.Version())
 	if !ok {
 		return nil
 	}
-	currentVersionStr, doAutoUpgrade, err := autoupgradeStore.GetAutoUpgrade(ctx)
+	currentVersionStr, doAutoUpgrade, err := upgradestore.New(db).GetAutoUpgrade(ctx)
 	if err != nil {
 		return errors.Wrap(err, "autoupgradestore.GetAutoUpgrade")
 	}
-	if !doAutoUpgrade {
+	if !doAutoUpgrade && !shouldAutoUpgade {
+		fmt.Println("------------------ DO NOT AUTO UPGRADE ------------------------")
 		return nil
+	} else {
+		fmt.Println("-----------------------AUTO UPGRADING-------------------------")
 	}
 
+	fmt.Println("CURRENT VERSION STRING", currentVersionStr)
 	currentVersion, _, ok := oobmigration.NewVersionAndPatchFromString(currentVersionStr)
 	if !ok {
+		return errors.Newf("VERSION STRING BAD %s", currentVersion)
+	}
+	fmt.Printf("CURRENT VERSION %+v\n", currentVersion)
+
+	if cmp := oobmigration.CompareVersions(currentVersion, toVersion); cmp == oobmigration.VersionOrderAfter || cmp == oobmigration.VersionOrderEqual {
+		fmt.Println("CURRENT >= TO, SNOOZE")
 		return nil
 	}
 
@@ -75,11 +89,19 @@ func tryAutoUpgrade(ctx context.Context, obsvCtx *observation.Context, db databa
 	return errors.New("MIGRATION SUCCEEDED, RESTARTING")
 }
 
-func runMigration(ctx context.Context, obsvCtx *observation.Context, from, to oobmigration.Version, db database.DB, hook store.RegisterMigratorsUsingConfAndStoreFactoryFunc) error {
+func runMigration(ctx context.Context,
+	obsvCtx *observation.Context,
+	from,
+	to oobmigration.Version,
+	db database.DB,
+	enterpriseMigratorsHook store.RegisterMigratorsUsingConfAndStoreFactoryFunc,
+) error {
 	versionRange, err := oobmigration.UpgradeRange(from, to)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("RANGE %+v %+v %+v\n", from, to, versionRange)
 
 	interrupts, err := oobmigration.ScheduleMigrationInterrupts(from, to)
 	if err != nil {
@@ -93,10 +115,11 @@ func runMigration(ctx context.Context, obsvCtx *observation.Context, from, to oo
 
 	registerMigrators := store.ComposeRegisterMigratorsFuncs(
 		migrations.RegisterOSSMigratorsUsingConfAndStoreFactory,
-		hook,
+		enterpriseMigratorsHook,
 	)
 
-	out := output.NewOutput(&buffer, output.OutputOpts{})
+	tee := io.MultiWriter(&buffer, os.Stdout)
+	out := output.NewOutput(tee, output.OutputOpts{})
 
 	runnerFactory := func(schemaNames []string, schemas []*schemas.Schema) (*runner.Runner, error) {
 		return migration.NewRunnerWithSchemas(
@@ -131,6 +154,7 @@ func serveConfigurationServer(ctx context.Context, obsvCtx *observation.Context)
 		Logger:       obsvCtx.Logger,
 		WriteErrBody: true,
 	})
+	router.Path("/configuration").Methods(http.MethodPost).Name(apirouter.Configuration)
 	router.Get(apirouter.Configuration).Handler(middleware(func(w http.ResponseWriter, r *http.Request) error {
 		configuration := conf.Unified{
 			ServiceConnectionConfig: conftypes.ServiceConnections{

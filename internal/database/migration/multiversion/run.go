@@ -68,15 +68,15 @@ func RunMigration(
 			return err
 		}
 		if !ok {
-			return errors.Newf("version assertion failed: unknown version != %q. Re-invoke with --skip-version-check to ignore this check", plan.From)
+			return errors.Newf("version assertion failed: unknown version != %q. Re-invoke with --skip-version-check to ignore this check", plan.from)
 		}
-		if oobmigration.CompareVersions(version, plan.From) != oobmigration.VersionOrderEqual {
-			return errors.Newf("version assertion failed: %q != %q. Re-invoke with --skip-version-check to ignore this check", version, plan.From)
+		if oobmigration.CompareVersions(version, plan.from) != oobmigration.VersionOrderEqual {
+			return errors.Newf("version assertion failed: %q != %q. Re-invoke with --skip-version-check to ignore this check", version, plan.from)
 		}
 	}
 
 	if !skipDriftCheck {
-		if err := CheckDrift(ctx, r, plan.From.GitTagWithPatch(patch), out, false, schemas.SchemaNames, expectedSchemaFactories); err != nil {
+		if err := CheckDrift(ctx, r, plan.from.GitTagWithPatch(patch), out, false, schemas.SchemaNames, expectedSchemaFactories); err != nil {
 			return err
 		}
 	}
@@ -130,7 +130,7 @@ func RunMigration(
 		}
 
 		if len(step.outOfBandMigrationIDs) > 0 {
-			if err := runOutOfBandMigrations(
+			if err := RunOutOfBandMigrations(
 				ctx,
 				db,
 				dryRun,
@@ -163,7 +163,7 @@ func RunMigration(
 	return nil
 }
 
-func runOutOfBandMigrations(
+func RunOutOfBandMigrations(
 	ctx context.Context,
 	db database.DB,
 	dryRun bool,
